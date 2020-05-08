@@ -1,0 +1,276 @@
+#USAGE ssh_nopass_init <uname>@<server_ip>:<server_port>
+cmd_name="sshnp"
+SERVER_DETAILS=""
+UNAME=""
+SERVER_IP=""
+SERVER_PORT=""
+SSH_KEY_PREFIX=""
+DEBUG_LEVEL="error"  # "quite", "debug", "error"
+
+replace_dots_with_dash () {
+    RET=`echo "$1" | sed -r 's/[.]+/_/g' 2> /dev/null`
+    if [ $? -ne 0 ]; then
+        #MAC accepts only -E option in sed
+        RET=`echo "$1" | sed -E 's/[.]+/_/g' 2> /dev/null`
+        if [ $? -ne 0 ]; then
+            echo "[ error ] sed command failure @ replace_dots_with_dash()"
+            exit 1
+        fi
+    fi    
+    echo $RET
+}
+
+#arg1 = debug level [ debug / error ]
+#arg2 = command to execute in string format
+#arg3 = ( optional ) message to display on error
+ExecCmd () {
+
+    #debug level
+    if [ -z "$1" ]; then
+        if [ "$1" != "quite" ]; then
+            echo "[    error   ] -> \""arg 1 is missing"\""
+        fi
+    fi
+
+    #command
+    if [ -z "$2" ]; then
+        if [ "$1" != "quite" ]; then
+            echo "[    error   ] -> \""arg 2 is missing"\""
+        fi
+    fi
+
+    eval $2
+    
+    if [ $? -ne 0 ]; then
+        if [ "$1" != "quite" ]; then
+            echo "[ exec_error   ] -> \""$2"\""
+            echo
+        fi
+        #if argument 2 exist
+        if [ ! -z "$3" ]; then
+            if [ "$1" != "quite" ]; then
+                echo $3
+                echo
+            fi
+        fi
+    else
+        #command execution success
+        if [ "$1" = "debug" ]; then
+            echo "[ exec_success   ] -> \""$2"\""
+        fi
+    fi
+}
+
+
+#arg1 = debug level [ debug / error ]
+#arg2 = command to execute in string format
+#arg3 = ( optional ) message to display on error
+ExecAndExitOnError () {
+
+    #debug level
+    if [ -z "$1" ]; then
+        if [ "$1" != "quite" ]; then
+            echo "[    error   ] -> \""arg 1 is missing"\""
+        fi
+        exit 1
+    fi
+
+    #command
+    if [ -z "$2" ]; then
+        if [ "$1" != "quite" ]; then
+            echo "[    error   ] -> \""arg 2 is missing"\""
+        fi
+        exit 1
+    fi
+
+
+    eval $2
+    
+    if [ $? -ne 0 ]; then
+        if [ "$1" != "quite" ]; then
+            echo "[ exec_error   ] -> \""$2"\""
+            echo
+        fi
+
+        #if argument 2 exist
+        if [ ! -z "$3" ]; then
+            if [ "$1" != "quite" ]; then
+                echo $3
+                echo
+            fi
+        fi
+        exit 1
+    else
+        #command execution success
+        if [ "$1" = "debug" ]; then
+            echo "[ exec_success   ] -> \""$2"\""
+        fi
+    fi
+}
+
+#Inputs Validation
+validate_server_details() {
+    ret=`echo $1 |  grep "@"`
+
+    if [ -z "$ret" ]; then
+        echo "[ input error ] username or server ip missing"
+        exit 1
+    fi
+}
+
+#Inputs Validation
+validate_server_details_at_arg1() {
+    ret=`echo $1 |  grep "@"`
+    
+    if [ -z "$ret" ]; then
+        usage
+        exit 1
+    fi
+}
+
+
+
+parse_server_details() {
+    UNAME=`echo $1  | awk -F@ '{print $1}'`
+    TEMP_STR=`echo $1  | awk -F@ '{print $2}'`
+    SERVER_IP=`echo $TEMP_STR  | awk -F: '{print $1}'`
+    SERVER_PORT=`echo $TEMP_STR  | awk -F: '{print $2}'`
+
+    if [[ -z $SERVER_PORT ]]; then
+        SERVER_PORT="22"
+    fi
+
+    SSH_KEY_PREFIX="$(replace_dots_with_dash $SERVER_IP)"
+    SSH_KEY_PREFIX=$UNAME"_"$SSH_KEY_PREFIX"_"$SERVER_PORT
+}
+
+print_connection_details() {
+    echo
+    echo "Remote Host Details :"
+    echo
+    echo "  User Name         : " $UNAME
+    echo "  Server IP         : " $SERVER_IP
+    echo "  Server SSH Port   : " $SERVER_PORT
+    echo "  SSH Key Prefix    : " $SSH_KEY_PREFIX
+    echo
+}
+
+
+#prerequisite check
+verify_essential_packages() {
+    ExecAndExitOnError $DEBUG_LEVEL "which ssh-keygen &> /dev/null"  "Install package ( ssh-keygen ) before using this utility"
+    ExecAndExitOnError $DEBUG_LEVEL "which ssh &> /dev/null"         "Install package ( ssh ) before using this utility"
+    ExecAndExitOnError $DEBUG_LEVEL "which scp &> /dev/null"         "Install package ( scp ) before using this utility"
+}
+
+local_verify_keys(){
+    ExecAndExitOnError $DEBUG_LEVEL "ls $HOME/.ssh/$SSH_KEY_PREFIX &> /dev/null"     "ssh private key missing"
+    ExecAndExitOnError $DEBUG_LEVEL "ls $HOME/.ssh/$SSH_KEY_PREFIX.pub &> /dev/null" "ssh public key missing"
+}
+
+local_delete_old_keys() {
+    #Need to just check if file exist or create seperate keys for new servers
+    ExecCmd "quite" "rm -rf $HOME/.ssh/$SSH_KEY_PREFIX"
+    ExecCmd "quite" "rm -rf $HOME/.ssh/$SSH_KEY_PREFIX.pub"
+}
+
+generate_rsa_keys() {
+    ExecAndExitOnError "error" "ssh-keygen -q -N '' -t rsa -b 1024 -f $HOME/.ssh/$SSH_KEY_PREFIX &> /dev/null"
+}
+
+
+remote_add_public_key_to_authorized_keys() {
+    #In remote server copy /tmp/$SSH_KEY_PREFIX.pub to .ssh/authorized_keys and .ssh/known_hosts
+    ssh $UNAME@$SERVER_IP -p $SERVER_PORT -t "mkdir -p ~/.ssh; cat ~/.ssh/$SSH_KEY_PREFIX.pub >> ~/.ssh/authorized_keys; cat ~/.ssh/$SSH_KEY_PREFIX.pub >> ~/.ssh/known_hosts;"
+}
+
+remote_upload_public_key(){
+    ExecAndExitOnError "error" "scp -r -P $SERVER_PORT $HOME/.ssh/$SSH_KEY_PREFIX.pub $UNAME@$SERVER_IP:~/.ssh/" "ssh public key upload"
+}
+
+remote_delete_public_key(){
+    ssh $UNAME@$SERVER_IP -p $SERVER_PORT -t "rm ~/.ssh/$SSH_KEY_PREFIX.pub 2> /dev/null;"
+}
+
+usage() {
+    echo 
+    echo "<------------------  Usage Instruction --------------------->" 
+    echo
+    echo "List of command options for password less ssh utility"
+    echo
+    echo "  "$cmd_name " enable <username>@<domain/ip_address>""         -> [ enable password less ssh]"
+    echo "  "$cmd_name " enable <username>@<domain/ip_address>:<port>""  -> [ enable password less ssh]"
+    echo "  "$cmd_name " <username>@<domain/ip_address>""                -> [ connect to server without password ]"
+    echo "  "$cmd_name " <username>@<domain/ip_address>:<port>""         -> [ connect to server without password ]"
+    echo "  "$cmd_name " disable <username>@<domain/ip_address>""        -> [ disable password less ssh]"
+    echo "  "$cmd_name " disable <username>@<domain/ip_address>:<port>"" -> [ disable password less ssh]"
+    echo
+    echo
+}
+
+enable_ssh_nopass(){
+    SERVER_DETAILS=$1
+    validate_server_details $SERVER_DETAILS
+    parse_server_details $SERVER_DETAILS
+    print_connection_details
+    verify_essential_packages
+    local_delete_old_keys
+    generate_rsa_keys 
+    remote_upload_public_key
+    remote_add_public_key_to_authorized_keys
+    echo
+    echo "** PASSWORDLESS SSH ENABLED **"
+}
+
+disable_ssh_nopass(){
+    SERVER_DETAILS=$1
+    validate_server_details $SERVER_DETAILS
+    parse_server_details $SERVER_DETAILS
+    #print_connection_details
+    verify_essential_packages
+    local_delete_old_keys
+    remote_delete_public_key
+    echo
+    echo "** PASSWORDLESS SSH DISABLED **"
+}
+
+ssh_nopass_connect() {
+    SERVER_DETAILS=$1
+    validate_server_details_at_arg1 $SERVER_DETAILS
+    parse_server_details $SERVER_DETAILS
+    print_connection_details
+    verify_essential_packages
+    local_verify_keys
+    echo "** CONNECTING TO REMOTE HOST PASSWORDLESS SSH **"
+    ssh $UNAME@$SERVER_IP -p $SERVER_PORT -i $HOME/.ssh/$SSH_KEY_PREFIX 
+}
+
+ssh_nopass_main() {
+    if [ "$1" = "enable" ]; then
+        SERVER_DETAILS=$2
+        echo "** ENABLING PASSWORDLESS SSH **"
+        enable_ssh_nopass $SERVER_DETAILS
+    elif [ "$1" = "disable" ]; then
+        SERVER_DETAILS=$2
+        echo "** DISABLING PASSWORDLESS SSH **"
+        disable_ssh_nopass $SERVER_DETAILS
+    else
+        SERVER_DETAILS=$1
+        ssh_nopass_connect $SERVER_DETAILS
+    fi
+}
+
+if [ $# -lt 1 ]; then
+    echo
+    echo "[ error ] usage "
+    usage
+    exit 1
+fi
+
+
+ssh_nopass_main $1 $2
+
+exit 1
+
+
+
