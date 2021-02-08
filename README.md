@@ -21,16 +21,15 @@ Note: sshnp is based on openssh.
 
 #### Step 1: Setup password less ssh connectivity to remote server
 
-    $sshnp  enable <username>@<domain/ip_address>
+    $sshnp  <username>@<domain/ip_address>
     
 #### Example
     
-    $sshnp  enable testuser@192.168.1.10
+    $sshnp  testuser@192.168.1.10
     
+    -> Feed the remote server password 
 
 #### Step 2: Connect to remote server without password 
-
-    Step 1 should be completed before executing step 2
 
     $sshnp  <username>@<domain/ip_address>
     
@@ -38,6 +37,7 @@ Note: sshnp is based on openssh.
     
     $sshnp  testuser@192.168.1.10
     
+    -> Now connection happens without feeing password
 
 #### Step 3: Disable password less ssh connectivity to remote server
 

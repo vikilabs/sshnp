@@ -164,8 +164,19 @@ verify_essential_packages() {
 }
 
 local_verify_keys(){
-    ExecAndExitOnError $DEBUG_LEVEL "ls $HOME/.ssh/$SSH_KEY_PREFIX &> /dev/null"     "ssh private key missing"
-    ExecAndExitOnError $DEBUG_LEVEL "ls $HOME/.ssh/$SSH_KEY_PREFIX.pub &> /dev/null" "ssh public key missing"
+	F_PUBLIC_KEY="$HOME/.ssh/$SSH_KEY_PREFIX.pub"	
+	if [ ! -f "$F_PUBLIC_KEY" ]; then
+		echo "[ notice ] ssh public key missing"
+        	enable_ssh_nopass $SERVER_DETAILS
+		return 0
+	fi
+
+	F_PRIVATE_KEY="$HOME/.ssh/$SSH_KEY_PREFIX"
+	if [ ! -f "$F_PRIVATE_KEY" ]; then 
+		echo "[ notice ] ssh private key missing"
+        	enable_ssh_nopass $SERVER_DETAILS
+		return 0
+	fi    
 }
 
 local_delete_old_keys() {
@@ -198,8 +209,6 @@ usage() {
     echo
     echo "List of command options for password less ssh utility"
     echo
-    echo "  "$cmd_name " enable <username>@<domain/ip_address>""         -> [ enable password less ssh]"
-    echo "  "$cmd_name " enable <username>@<domain/ip_address>:<port>""  -> [ enable password less ssh]"
     echo "  "$cmd_name " <username>@<domain/ip_address>""                -> [ connect to server without password ]"
     echo "  "$cmd_name " <username>@<domain/ip_address>:<port>""         -> [ connect to server without password ]"
     echo "  "$cmd_name " disable <username>@<domain/ip_address>""        -> [ disable password less ssh]"
@@ -209,17 +218,16 @@ usage() {
 }
 
 enable_ssh_nopass(){
+    echo "[ status ] initializing passwordless ssh"
+    echo
     SERVER_DETAILS=$1
-    validate_server_details $SERVER_DETAILS
     parse_server_details $SERVER_DETAILS
-    print_connection_details
-    verify_essential_packages
     local_delete_old_keys
     generate_rsa_keys 
     remote_upload_public_key
     remote_add_public_key_to_authorized_keys
     echo
-    echo "** PASSWORDLESS SSH ENABLED **"
+    #echo "[ status ] passwordless ssh initialized"
 }
 
 disable_ssh_nopass(){
@@ -231,28 +239,40 @@ disable_ssh_nopass(){
     local_delete_old_keys
     remote_delete_public_key
     echo
-    echo "** PASSWORDLESS SSH DISABLED **"
+    echo "[ status ] passwordless ssh is disabled"
 }
 
 ssh_nopass_connect() {
     SERVER_DETAILS=$1
     validate_server_details_at_arg1 $SERVER_DETAILS
     parse_server_details $SERVER_DETAILS
-    print_connection_details
+    #print_connection_details
     verify_essential_packages
-    local_verify_keys
-    echo "** CONNECTING TO REMOTE HOST PASSWORDLESS SSH **"
-    ssh $UNAME@$SERVER_IP -p $SERVER_PORT -i $HOME/.ssh/$SSH_KEY_PREFIX 
+    #echo "[ status ] connecting to remote host"
+    
+    ssh $UNAME@$SERVER_IP -p $SERVER_PORT -i $HOME/.ssh/$SSH_KEY_PREFIX -o PasswordAuthentication=no 2> /dev/null 
+    
+    if [ $? -ne 0 ]; then
+
+    	echo "[ notice ] sshnp is not initialized ( or ) private/public key is malformed"
+        echo
+
+	enable_ssh_nopass $SERVER_DETAILS
+    
+    	ssh $UNAME@$SERVER_IP -p $SERVER_PORT -i $HOME/.ssh/$SSH_KEY_PREFIX -o PasswordAuthentication=no 2> /dev/null
+
+    	if [ $? -ne 0 ]; then
+    		echo "[ error ] sshnp is not initialized | private/public key is malformed"
+    	fi
+
+    fi
+ 
 }
 
 ssh_nopass_main() {
-    if [ "$1" = "enable" ]; then
+    if [ "$1" = "disable" ]; then
         SERVER_DETAILS=$2
-        echo "** ENABLING PASSWORDLESS SSH **"
-        enable_ssh_nopass $SERVER_DETAILS
-    elif [ "$1" = "disable" ]; then
-        SERVER_DETAILS=$2
-        echo "** DISABLING PASSWORDLESS SSH **"
+        echo "[ status ] disabling password less ssh"
         disable_ssh_nopass $SERVER_DETAILS
     else
         SERVER_DETAILS=$1
@@ -267,8 +287,9 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
-
+echo
 ssh_nopass_main $1 $2
+echo
 
 exit 1
 
