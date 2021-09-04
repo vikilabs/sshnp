@@ -1,8 +1,10 @@
 #!/bin/bash
-
+#
 #		Author	: Viki (a) Vignesh Natarajan 
 #		Contact	: vikilabs.org
 #		Licence : MIT
+#
+DEBUG=0
 
 ARG0="$0"
 ARG1="$1"
@@ -31,7 +33,7 @@ replace_dots_with_dash () {
             echo "[ error ] sed command failure @ replace_dots_with_dash()"
             exit 1
         fi
-    fi
+    fi    
     echo $RET
 }
 
@@ -55,7 +57,7 @@ ExecCmd () {
     fi
 
     eval $2
-
+    
     if [ $? -ne 0 ]; then
         if [ "$1" != "quite" ]; then
             echo "[ exec_error   ] -> \""$2"\""
@@ -100,7 +102,7 @@ ExecAndExitOnError () {
 
 
     eval $2
-
+    
     if [ $? -ne 0 ]; then
         if [ "$1" != "quite" ]; then
             echo "[ exec_error   ] -> \""$2"\""
@@ -136,7 +138,7 @@ validate_server_details() {
 #Inputs Validation
 validate_server_details_at_arg1() {
     ret=`echo $1 |  grep "@"`
-
+    
     if [ -z "$ret" ]; then
         usage
         exit 1
@@ -147,9 +149,9 @@ validate_server_details_at_arg1() {
 
 parse_server_details() {
     [ -z $SERVER_DETAILS ] && { echo "  error: ( ${LINENO} )"; exit 1; }
-
+    
     validate_server_details $SERVER_DETAILS
-
+    
     [ -z $SERVER_DETAILS ] && { echo "  error: ( ${LINENO} )"; exit 1; }
 
     UNAME=`echo $SERVER_DETAILS  | awk -F@ '{print $1}'`
@@ -168,13 +170,15 @@ parse_server_details() {
 }
 
 print_connection_details() {
-    echo "  Remote Host Details :"
-    echo
-    echo "    User Name         : " $UNAME
-    echo "    Server IP         : " $SERVER_IP
-    echo "    Server SSH Port   : " $SERVER_PORT
-    echo "    SSH Key Public    : " $SSH_KEY_PUBLIC
-    echo "    SSH Key Private   : " $SSH_KEY_PRIVATE
+    if [ $DEBUG -eq 1 ]; then
+        echo "  Remote Host Details :"
+        echo
+        echo "    User Name         : " $UNAME
+        echo "    Server IP         : " $SERVER_IP
+        echo "    Server SSH Port   : " $SERVER_PORT
+        echo "    SSH Key Public    : " $SSH_KEY_PUBLIC
+        echo "    SSH Key Private   : " $SSH_KEY_PRIVATE
+    fi
 }
 
 
@@ -186,24 +190,30 @@ prerequisite_check(){
 }
 
 local_delete_old_keys() {
+    if [ $DEBUG -eq 1 ]; then
     echo "  [ status ] deleting old key ( $SSH_KEY_PATH/$SSH_KEY_PUBLIC )"
     echo "  [ status ] deleting old key ( $SSH_KEY_PATH/$SSH_KEY_PRIVATE )"
+    fi
     #Need to just check if file exist or create seperate keys for new servers
     ExecCmd "quite" "rm -rf $SSH_KEY_PATH/$SSH_KEY_PUBLIC"
     ExecCmd "quite" "rm -rf $SSH_KEY_PATH/$SSH_KEY_PRIVATE"
 }
 
 generate_rsa_keys() {
+    if [ $DEBUG -eq 1 ]; then
     echo "  [ status ] generating rsa key ( $SSH_KEY_PATH/$SSH_KEY_PRIVATE )"
-
+    fi
     ExecAndExitOnError "error" "ssh-keygen -q -N '' -t rsa -b 1024 -f $SSH_KEY_PATH/$SSH_KEY_PRIVATE &> /dev/null"
 }
 
 
 remote_upload_public_key(){
+    if [ $DEBUG -eq 1 ]; then
     echo "  [ status ] uploading key to remote host ( $SSH_KEY_PATH/$SSH_KEY_PUBLIC )"
     echo
     echo
+    fi
+
     ExecAndExitOnError "error" "ssh-copy-id -p $SERVER_PORT -i $SSH_KEY_PATH/$SSH_KEY_PUBLIC $UNAME@$SERVER_IP  &> /dev/null" "ssh public key upload"
 }
 
@@ -213,8 +223,8 @@ remote_delete_public_key(){
 }
 
 usage() {
-    echo
-    echo "  <------------------  Usage Instruction --------------------->"
+    echo 
+    echo "  <------------------  Usage Instruction --------------------->" 
     echo
     echo "  Connect / Enable passwordless ssh"
     echo
@@ -232,22 +242,26 @@ usage() {
 disable_ssh_nopass(){
     #remote_delete_public_key
     local_delete_old_keys
+    if [ $DEBUG -eq 1 ]; then
     echo "  [ status ] passwordless ssh is disabled"
+    fi
 }
 
 enable_ssh_nopass(){
     validate_server_details_at_arg1 $SERVER_DETAILS
     disable_ssh_nopass
-    generate_rsa_keys
+    generate_rsa_keys 
     remote_upload_public_key
+    if [ $DEBUG -eq 1 ]; then
     echo "  [ status ] passwordless ssh is enabled"
+    fi
 }
 
 ssh_nopass_connect() {
     #print_connection_details
-
-    ssh $UNAME@$SERVER_IP -p $SERVER_PORT -i $SSH_KEY_PATH/$SSH_KEY_PRIVATE -o PasswordAuthentication=no 2> /dev/null
-
+    
+    ssh $UNAME@$SERVER_IP -p $SERVER_PORT -i $SSH_KEY_PATH/$SSH_KEY_PRIVATE -o PasswordAuthentication=no 2> /dev/null 
+    
     if [ $? -ne 0 ]; then
         echo
     	echo "  [ error ] sshnp is not enabled for this remote server ( $SERVER_DETAILS )"
@@ -279,9 +293,9 @@ generate_key_labels(){
     [ -z $IP_LABEL ] && { echo "  error: IP_LABEL generation ( ${LINENO} )"; exit 1; }
 
     SSH_KEY_LABEL=$UNAME"_"$IP_LABEL"_"$SERVER_PORT
-
+      
     SSH_KEY_PUBLIC="$SSH_KEY_LABEL.pub"
-    SSH_KEY_PRIVATE="$SSH_KEY_LABEL"
+    SSH_KEY_PRIVATE="$SSH_KEY_LABEL" 
 
     [ -z $SSH_KEY_PUBLIC ] && { echo "  error: ( ${LINENO} )"; exit 1; }
     [ -z $SSH_KEY_PRIVATE ] && { echo "  error: ( ${LINENO} )"; exit 1; }
@@ -289,10 +303,14 @@ generate_key_labels(){
 
 main_logic() {
     if [ "$ARG1" = "-d" ]; then
+    	if [ $DEBUG -eq 1 ]; then
         echo "  [ status ] disable password less ssh"
-        disable_ssh_nopass
+        fi
+	disable_ssh_nopass
     elif [ "$ARG1" = "-e" ]; then
+    	if [ $DEBUG -eq 1 ]; then
         echo "  [ status ] enable password less ssh"
+	fi
 	enable_ssh_nopass
     else
         ssh_nopass_connect
