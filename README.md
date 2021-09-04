@@ -1,14 +1,9 @@
 
-## Utility to connect to ssh remote host without password
+## Utility to connect remote host over ssh without password
 
+This utility is used to connect to remote host over ssh without feeding password everytime. 
 
-This package (sshnp) does the following,
-    
-    - Setup password less ssh connectivity to remote host with public and private key encryption
-    - Connect to remote host without password using public and private key encryption
-    - Disable password less ssh connectivity to remote host   
-
-Note: sshnp is based on openssh.
+Note: sshnp is based on openssh. To use this command openssh should be enabled in the remote server.
 
 ### How to install this package?
 
@@ -19,13 +14,13 @@ Note: sshnp is based on openssh.
 
 ### How to use this command?
 
-#### Step 1: Setup password less ssh connectivity to remote server
+#### Step 1: Enable password less ssh connectivity to remote server
 
-    $sshnp  <username>@<domain/ip_address>
+    $sshnp -e <username>@<domain/ip_address>
     
 #### Example
     
-    $sshnp  testuser@192.168.1.10
+    $sshnp  -e testuser@192.168.1.10
     
     -> Feed the remote server password 
 
