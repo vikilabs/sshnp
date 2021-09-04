@@ -41,11 +41,11 @@ Note: sshnp is based on openssh.
 
 #### Step 3: Disable password less ssh connectivity to remote server
 
-    $sshnp  disable <username>@<domain/ip_address>
+    $sshnp  -d <username>@<domain/ip_address>
     
 ##### Example
     
-    $sshnp  disable testuser@192.168.1.10
+    $sshnp  -d testuser@192.168.1.10
  
 
 ### Tested Systems
