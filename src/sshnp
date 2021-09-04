@@ -33,7 +33,7 @@ replace_dots_with_dash () {
             echo "[ error ] sed command failure @ replace_dots_with_dash()"
             exit 1
         fi
-    fi    
+    fi
     echo $RET
 }
 
@@ -57,7 +57,7 @@ ExecCmd () {
     fi
 
     eval $2
-    
+
     if [ $? -ne 0 ]; then
         if [ "$1" != "quite" ]; then
             echo "[ exec_error   ] -> \""$2"\""
@@ -102,7 +102,7 @@ ExecAndExitOnError () {
 
 
     eval $2
-    
+
     if [ $? -ne 0 ]; then
         if [ "$1" != "quite" ]; then
             echo "[ exec_error   ] -> \""$2"\""
@@ -138,7 +138,7 @@ validate_server_details() {
 #Inputs Validation
 validate_server_details_at_arg1() {
     ret=`echo $1 |  grep "@"`
-    
+
     if [ -z "$ret" ]; then
         usage
         exit 1
@@ -149,9 +149,9 @@ validate_server_details_at_arg1() {
 
 parse_server_details() {
     [ -z $SERVER_DETAILS ] && { echo "  error: ( ${LINENO} )"; exit 1; }
-    
+
     validate_server_details $SERVER_DETAILS
-    
+
     [ -z $SERVER_DETAILS ] && { echo "  error: ( ${LINENO} )"; exit 1; }
 
     UNAME=`echo $SERVER_DETAILS  | awk -F@ '{print $1}'`
@@ -187,22 +187,6 @@ prerequisite_check(){
     ExecAndExitOnError $DEBUG_LEVEL "which scp &> /dev/null"         "Install package ( scp ) before using this utility"
 }
 
-local_verify_keys(){
-	F_PUBLIC_KEY="$SSH_KEY_PATH/$SSH_KEY_PUBLIC"	
-	if [ ! -f "$F_PUBLIC_KEY" ]; then
-		echo "[ notice ] ssh public key missing"
-        	enable_ssh_nopass $SERVER_DETAILS
-		return 0
-	fi
-
-	F_PRIVATE_KEY="$SSH_KEY_PATH/$SSH_KEY_PRIVATE"
-	if [ ! -f "$F_PRIVATE_KEY" ]; then 
-		echo "[ notice ] ssh private key missing"
-        	enable_ssh_nopass $SERVER_DETAILS
-		return 0
-	fi    
-}
-
 local_delete_old_keys() {
     echo "  [ status ] deleting old key ( $SSH_KEY_PATH/$SSH_KEY_PUBLIC )"
     echo "  [ status ] deleting old key ( $SSH_KEY_PATH/$SSH_KEY_PRIVATE )"
@@ -231,8 +215,8 @@ remote_delete_public_key(){
 }
 
 usage() {
-    echo 
-    echo "  <------------------  Usage Instruction --------------------->" 
+    echo
+    echo "  <------------------  Usage Instruction --------------------->"
     echo
     echo "  Connect / Enable passwordless ssh"
     echo
@@ -247,49 +231,41 @@ usage() {
     echo
 }
 
-enable_ssh_nopass(){
-    local_delete_old_keys
-    generate_rsa_keys 
-    remote_upload_public_key
-    #echo "[ status ] passwordless ssh initialized"
-}
-
 disable_ssh_nopass(){
-    #print_connection_details
     #remote_delete_public_key
     local_delete_old_keys
     echo "  [ status ] passwordless ssh is disabled"
 }
 
-ssh_nopass_connect() {
+enable_ssh_nopass(){
     validate_server_details_at_arg1 $SERVER_DETAILS
+    disable_ssh_nopass
+    generate_rsa_keys
+    remote_upload_public_key
+    echo "  [ status ] passwordless ssh is enabled"
+}
+
+ssh_nopass_connect() {
     #print_connection_details
-    #echo "[ status ] connecting to remote host"
-    
-    ssh $UNAME@$SERVER_IP -p $SERVER_PORT -i $SSH_KEY_PATH/$SSH_KEY_PRIVATE -o PasswordAuthentication=no 2> /dev/null 
-    
+
+    ssh $UNAME@$SERVER_IP -p $SERVER_PORT -i $SSH_KEY_PATH/$SSH_KEY_PRIVATE -o PasswordAuthentication=no 2> /dev/null
+
     if [ $? -ne 0 ]; then
-
-    	echo "[ notice ] sshnp is not initialized ( or ) private/public key is malformed"
         echo
-
-	enable_ssh_nopass $SERVER_DETAILS
-   
-	echo
-	echo " connecting to server : $SERVER_IP"
-	echo 
-    	ssh $UNAME@$SERVER_IP -p $SERVER_PORT -i $SSH_KEY_PATH/$SSH_KEY_PRIVATE -o PasswordAuthentication=no 2> /dev/null
-
-    	if [ $? -ne 0 ]; then
-    		echo "[ error ] sshnp is not initialized | private/public key is malformed"
-    	fi
-
+    	echo "  [ error ] sshnp is not enabled for this remote server ( $SERVER_DETAILS )"
+        echo
+        echo "  [ help  ] Try running the following command to enable sshnp"
+        echo
+        echo "       $CMD -e $SERVER_DETAILS"
+        echo
+	exit 1
     fi
- 
 }
 
 get_server_details() {
     if [ "$ARG1" = "-d" ]; then
+        SERVER_DETAILS="$ARG2"
+    elif [ "$ARG1" = "-e" ]; then
         SERVER_DETAILS="$ARG2"
     else
         SERVER_DETAILS="$ARG1"
@@ -305,9 +281,9 @@ generate_key_labels(){
     [ -z $IP_LABEL ] && { echo "  error: IP_LABEL generation ( ${LINENO} )"; exit 1; }
 
     SSH_KEY_LABEL=$UNAME"_"$IP_LABEL"_"$SERVER_PORT
-      
+
     SSH_KEY_PUBLIC="$SSH_KEY_LABEL.pub"
-    SSH_KEY_PRIVATE="$SSH_KEY_LABEL" 
+    SSH_KEY_PRIVATE="$SSH_KEY_LABEL"
 
     [ -z $SSH_KEY_PUBLIC ] && { echo "  error: ( ${LINENO} )"; exit 1; }
     [ -z $SSH_KEY_PRIVATE ] && { echo "  error: ( ${LINENO} )"; exit 1; }
@@ -315,8 +291,11 @@ generate_key_labels(){
 
 main_logic() {
     if [ "$ARG1" = "-d" ]; then
-        echo "  [ status ] disabling password less ssh"
+        echo "  [ status ] disable password less ssh"
         disable_ssh_nopass
+    elif [ "$ARG1" = "-e" ]; then
+        echo "  [ status ] enable password less ssh"
+	enable_ssh_nopass
     else
         ssh_nopass_connect
     fi
