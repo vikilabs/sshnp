@@ -17,7 +17,7 @@ SERVER_DETAILS=""
 UNAME=""
 SERVER_IP=""
 SERVER_PORT=""
-SSH_KEY_PATH="$HOME/.ssh"
+SSH_KEY_PATH="$HOME/.ssh/sshnp"
 
 SSH_KEY_PUBLIC=""
 SSH_KEY_PRIVATE=""
@@ -187,6 +187,7 @@ prerequisite_check(){
     ExecAndExitOnError $DEBUG_LEVEL "which ssh-keygen &> /dev/null"  "Install package ( ssh-keygen ) before using this utility"
     ExecAndExitOnError $DEBUG_LEVEL "which ssh &> /dev/null"         "Install package ( ssh ) before using this utility"
     ExecAndExitOnError $DEBUG_LEVEL "which scp &> /dev/null"         "Install package ( scp ) before using this utility"
+    mkdir -p $SSH_KEY_PATH
 }
 
 local_delete_old_keys() {
@@ -226,15 +227,20 @@ usage() {
     echo 
     echo "  <------------------  Usage Instruction --------------------->" 
     echo
-    echo "  Connect / Enable passwordless ssh"
+    echo "  Connect to remote server without password"
     echo
-    echo "    "$CMD " <username>@<domain/ip_address>""                -> [ connect to server without password ]"
-    echo "    "$CMD " <username>@<domain/ip_address>:<port>""         -> [ connect to server without password ]"
+    echo "    "$CMD " <username>@<domain/ip_address>:<port>""     -> [ connect to server without password ]"
+    echo "" 
+    echo "  Enable passwordless ssh"
+    echo
+    echo "    "$CMD " -e <username>@<domain/ip_address>:<port>""  -> [ enable password less ssh ]"
     echo
     echo "  Disable passwordless ssh"
     echo
-    echo "    "$CMD " -d <username>@<domain/ip_address>""        -> [ disable password less ssh]"
-    echo "    "$CMD " -d <username>@<domain/ip_address>:<port>"" -> [ disable password less ssh]"
+    echo "    "$CMD " -d <username>@<domain/ip_address>:<port>""  -> [ disable password less ssh]"
+    echo
+    echo
+    echo "  Note: <port> is optional, default port is 22"
     echo
     echo
 }
